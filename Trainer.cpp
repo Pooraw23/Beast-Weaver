@@ -5,9 +5,11 @@
 // Initialize static member; one classwide copy
 int Trainer::totalBeastsCaught = 0;
 
-// Parameterized constructor with defaults
+// Parameterized constructor with default values
 Trainer::Trainer(string name) {
     trainerName = name;
+    gold = 100;
+    prizeMoney = 0;
     partySize = 0;
     party = nullptr;
     
@@ -16,9 +18,49 @@ Trainer::Trainer(string name) {
     inventory = new Item[inventoryCapacity];
 }
 
+// Custom NPC Constructor dynamically populating party based on difficulty tier (Requirement 5)
+Trainer::Trainer(string name, int difficultyTier) {
+    trainerName = name;
+    inventoryCount = 0;
+    inventoryCapacity = 5;
+    inventory = new Item[inventoryCapacity];
+
+    if (difficultyTier == 1) { // Novice Tier
+        gold = 60;
+        prizeMoney = 60;
+        partySize = 2;
+        party = new Beast[partySize];
+        party[0] = Beast("Rattasaur", 0, 36, 13, 10, 0, 2, 0);
+        party[1] = Beast("Pebblefin", 1, 42, 11, 8, 0, 2, 0);
+    } else if (difficultyTier == 2) { // Intermediate Tier (Hiker / Specialist)
+        gold = 150;
+        prizeMoney = 150;
+        partySize = 2;
+        party = new Beast[partySize];
+        party[0] = Beast("Boulderfang", 2, 58, 17, 9, 0, 5, 0);
+        party[1] = Beast("Pyroclast", 0, 52, 19, 14, 0, 5, 0);
+    } else if (difficultyTier >= 3) { // Elite Tier (Champion)
+        gold = 350;
+        prizeMoney = 350;
+        partySize = 3;
+        party = new Beast[partySize];
+        party[0] = Beast("Leviathan", 1, 75, 22, 16, 0, 8, 0);
+        party[1] = Beast("Infernodrake", 0, 72, 25, 18, 0, 8, 0);
+        party[2] = Beast("ThornColossus", 2, 85, 20, 12, 0, 9, 0);
+    } else {
+        gold = 30;
+        prizeMoney = 30;
+        partySize = 1;
+        party = new Beast[partySize];
+        party[0] = Beast("Wildling", 0, 30, 10, 8, 0, 1, 0);
+    }
+}
+
 // Copy constructor (Slide 07)
 Trainer::Trainer(const Trainer& other) {
     trainerName = other.trainerName;
+    gold = other.gold;
+    prizeMoney = other.prizeMoney;
     partySize = other.partySize;
     if (partySize > 0) {
         party = new Beast[partySize];
@@ -44,6 +86,8 @@ Trainer& Trainer::operator=(const Trainer& other) {
         delete[] inventory;
 
         trainerName = other.trainerName;
+        gold = other.gold;
+        prizeMoney = other.prizeMoney;
         partySize = other.partySize;
         if (partySize > 0) {
             party = new Beast[partySize];
@@ -121,6 +165,26 @@ bool Trainer::catchBeast(const Beast& newBeast) {
         cout << "\n>>> Party full! Beast could not be added without a PC Storage Box." << endl;
         return false;
     }
+}
+
+// Requirement 1: Checks if trainer has at least one conscious beast
+bool Trainer::hasUsableBeasts() const {
+    for (int i = 0; i < partySize; i++) {
+        if (!party[i].isFainted()) {
+            return true;
+        }
+    }
+    return false;
+}
+
+// Returns index of the first conscious beast in the party, or -1 if all fainted
+int Trainer::getFirstUsableIndex() const {
+    for (int i = 0; i < partySize; i++) {
+        if (!party[i].isFainted()) {
+            return i;
+        }
+    }
+    return -1;
 }
 
 void Trainer::printParty() const {
@@ -238,8 +302,7 @@ bool Trainer::useItem(int itemIndex, Beast& target) {
     }
 
     Item chosen = inventory[itemIndex];
-    // Uses overloaded operator+= on Beast! (Requirement 2)
-    target += chosen;
+    target += chosen; // Uses Beast::operator+=
 
     // Remove consumed item and shift array
     for (int i = itemIndex; i < inventoryCount - 1; i++) {
@@ -276,7 +339,6 @@ Item& Trainer::getItem(int index) {
     }
 }
 
-// Uses Item::operator== to search inventory
 bool Trainer::hasItem(const Item& item) const {
     for (int i = 0; i < inventoryCount; i++) {
         if (inventory[i] == item) {
@@ -284,6 +346,38 @@ bool Trainer::hasItem(const Item& item) const {
         }
     }
     return false;
+}
+
+// Binary Operator Overloading for Currency (Requirement 3)
+Trainer& Trainer::operator+=(int amount) {
+    gold += amount;
+    cout << "💰 [WALLET] " << trainerName << " received " << amount 
+         << " Gold! Total: " << gold << " Gold." << endl;
+    return *this;
+}
+
+Trainer& Trainer::operator-=(int amount) {
+    gold -= amount;
+    if (gold < 0) gold = 0;
+    cout << "💳 [PAYMENT] " << trainerName << " spent " << amount 
+         << " Gold. Remaining: " << gold << " Gold." << endl;
+    return *this;
+}
+
+int Trainer::getGold() const {
+    return gold;
+}
+
+int Trainer::getPrizeMoney() const {
+    return prizeMoney;
+}
+
+void Trainer::setGold(int amount) {
+    gold = amount;
+}
+
+void Trainer::setPrizeMoney(int amount) {
+    prizeMoney = amount;
 }
 
 Beast& Trainer::operator[](int index) {
@@ -314,6 +408,7 @@ void Trainer::setTotalCaught(int count) {
 
 ofstream& operator<<(ofstream& out, const Trainer& t) {
     out << t.trainerName << "\n";
+    out << t.gold << " " << t.prizeMoney << "\n";
     out << t.partySize << "\n";
     for (int i = 0; i < t.partySize; i++) {
         out << t.party[i]; // Beast file stream overload
@@ -327,6 +422,7 @@ ofstream& operator<<(ofstream& out, const Trainer& t) {
 
 ifstream& operator>>(ifstream& in, Trainer& t) {
     in >> t.trainerName;
+    in >> t.gold >> t.prizeMoney;
     int loadedPartySize = 0;
     if (in >> loadedPartySize) {
         delete[] t.party;

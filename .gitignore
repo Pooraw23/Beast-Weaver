@@ -19,3 +19,7 @@ out/
 
 # Local lecture slides and documents
 *.pdf
+
+# Local game save files
+save.txt
+test_save.txt

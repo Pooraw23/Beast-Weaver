@@ -23,14 +23,22 @@ private:
     int inventoryCount;
     int inventoryCapacity;
 
+    // Financial wallet and wager
+    int gold;
+    int prizeMoney;
+
     // Static data member to track global progress across all Trainer instances
     static int totalBeastsCaught; 
 
     void resizeInventory(int newCapacity);
 
 public:
-    // Constructors and Destructor (Rule of Three - Slide 07)
+    // Player Constructor (Default parameter supported - Slide 04)
     explicit Trainer(string name = "Trainer");
+    
+    // Custom NPC Constructor with difficulty tier (Requirement 5)
+    Trainer(string name, int difficultyTier);
+
     Trainer(const Trainer& other);
     Trainer& operator=(const Trainer& other);
     ~Trainer(); 
@@ -42,6 +50,10 @@ public:
     int getPartySize() const;
     string getName() const;
     void healParty();
+
+    // Battle readiness checks (Requirement 1)
+    bool hasUsableBeasts() const;
+    int getFirstUsableIndex() const;
 
     // Storage Box integration
     void swapWithStorage(int partyIndex, int storageIndex, StorageBox& storage);
@@ -55,6 +67,16 @@ public:
     int getInventoryCount() const;
     Item& getItem(int index);
     bool hasItem(const Item& item) const; // Uses Item::operator==
+
+    // Binary Operator Overloading for Wallet Management (Requirement 3)
+    Trainer& operator+=(int amount); // Wager winnings (e.g. player += npc.getPrizeMoney())
+    Trainer& operator-=(int amount); // Shop purchases (e.g. player -= potionPrice)
+
+    // Wallet getters and setters
+    int getGold() const;
+    int getPrizeMoney() const;
+    void setGold(int amount);
+    void setPrizeMoney(int amount);
 
     // Array subscript operator overloading for party indexing
     Beast& operator[](int index); 

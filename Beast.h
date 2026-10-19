@@ -26,11 +26,13 @@ private:
     int attackBase;
     int speed;
     int statusState;   // 0 = Normal, 1 = Poison, 2 = Burn, 3 = Stun
+    int level;         // Experience and Leveling
+    int exp;
 
 public:
     // Constructors and Destructor
     Beast(); // Default constructor
-    Beast(string n, int type, int health, int attack, int spd, int status = 0); // Parameterized constructor
+    Beast(string n, int type, int health, int attack, int spd, int status = 0, int lvl = 1, int xp = 0);
     ~Beast(); // Destructor 
 
     // Cascading member functions using the 'this' pointer
@@ -43,6 +45,9 @@ public:
     // Unary prefix decrement operator for end-of-turn status condition tick
     Beast& operator--();
 
+    // Unary prefix increment operator for Level Up & Stat progression (Requirement 2)
+    Beast& operator++();
+
     // Standard public getters and utilities
     bool isFainted() const;
     string getName() const;
@@ -53,11 +58,14 @@ public:
     int getElementalType() const;
     int getStatus() const;
     string getStatusString() const;
+    int getLevel() const;
+    int getExp() const;
 
     // Mutators
     void setStatus(int s);
     void setHp(int health);
     void restoreHealth();
+    void addExp(int amount);
 };
 
 #endif
