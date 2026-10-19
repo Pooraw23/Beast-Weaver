@@ -6,6 +6,7 @@
 #include "Trainer.h"
 #include "StorageBox.h"
 #include "Damage_Calculator.h"
+#include "WorldState.h"
 
 using namespace std;
 
@@ -13,18 +14,23 @@ class BattleArena {
 private:
     string arenaName;
 
-    // NPC AI logic with cascaded member function calls
+    // NPC AI logic with cascaded member function calls (Slide 05)
     void executeNpcTurn(Trainer& npc, int activeNpcIdx, Trainer& player, int activePlayerIdx);
 
 public:
     BattleArena(string name = "Grand Beast Colosseum");
     ~BattleArena();
 
+    // Visual ASCII Battle HUD renderers (Direction 4)
+    static string renderHpBar(int current, int max, int length = 16);
+    static void renderDuelHud(const Trainer& player, int activePlayerIdx, const Trainer& opponent, int activeOpponentIdx, string location);
+    static void renderWildHud(const Trainer& player, int activePlayerIdx, const Beast& wild, string location);
+
     // Runs a turn-based Trainer vs Trainer arena battle passing references (Requirement 1)
     void startMatch(Trainer& player, Trainer& npc);
 
-    // Runs a wild beast battle encounter with capture mechanics
-    void startWildEncounter(Trainer& player, StorageBox& pcBox);
+    // Runs a wild beast battle encounter with zone support and capture mechanics
+    void startWildEncounter(Trainer& player, StorageBox& pcBox, int zone = 1);
 };
 
 #endif

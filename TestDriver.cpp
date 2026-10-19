@@ -10,23 +10,27 @@
 #include "StorageBox.h"
 #include "Damage_Calculator.h"
 #include "BattleArena.h"
+#include "WorldState.h"
 
 using namespace std;
 
-// Function prototypes
+// Direction 4: Function prototypes for UI and World State
 void saveGame(const Trainer& player, const StorageBox& pcBox);
 bool loadGame(Trainer& player, StorageBox& pcBox);
 void storageMenu(Trainer& player, StorageBox& pcBox);
 void inventoryMenu(Trainer& player);
 void shopMenu(Trainer& player);
 void npcChallengeMenu(Trainer& player, BattleArena& arena);
+void exploreWildernessMenu(Trainer& player, StorageBox& pcBox, BattleArena& arena);
+void campMenu(Trainer& player, StorageBox& pcBox);
 
 int main() {
     srand(static_cast<unsigned int>(time(nullptr)));
 
-    cout << "==================================================" << endl;
-    cout << "           WELCOME TO BEAST WEAVER               " << endl;
-    cout << "==================================================" << endl;
+    cout << "==========================================================================" << endl;
+    cout << "             🌲 🌋 🌊  WELCOME TO BEAST WEAVER  🌊 🌋 🌲                 " << endl;
+    cout << "              Object-Oriented Tactical RPG Adventure                     " << endl;
+    cout << "==========================================================================" << endl;
 
     Trainer player("Hero");
     player.setGold(150); // Starts with 150 Gold
@@ -38,7 +42,7 @@ int main() {
     ifstream checkFile("save.txt");
     if (checkFile.is_open()) {
         checkFile.close();
-        cout << "\n[SAVE FOUND] A saved adventure was detected (save.txt)!" << endl;
+        cout << "\n[SAVE FOUND] A saved adventure was detected in save.txt!" << endl;
         cout << "1. Resume Saved Game\n2. Start New Adventure\nChoose: ";
         int startChoice;
         if (cin >> startChoice && startChoice == 1) {
@@ -53,10 +57,10 @@ int main() {
         player = Trainer(tName);
         player.setGold(150);
 
-        cout << "\nChoose your starter Beast:" << endl;
-        cout << "1. Pyrosaur   (Fire  - High Attack, Aggressive)" << endl;
-        cout << "2. Aquafang   (Water - High HP, Stun Specialists)" << endl;
-        cout << "3. Florataur  (Grass - Balanced, Poison Spores)" << endl;
+        cout << "\nChoose your starter Beast companion:" << endl;
+        cout << "1. 🔥 Pyrosaur   (Fire  - High Attack, Aggressive DPS)" << endl;
+        cout << "2. 💧 Aquafang   (Water - High HP, Stun Crowd Control)" << endl;
+        cout << "3. 🌿 Florataur  (Grass - Balanced Stats, Toxic Spores)" << endl;
         cout << "Select starter (1-3): ";
         int sChoice;
         cin >> sChoice;
@@ -72,7 +76,7 @@ int main() {
 
         player.catchBeast(starter, pcBox);
 
-        // Initial inventory
+        // Initial inventory backpack
         player.addItem(Item("HealthPotion", "HEAL", 25, "Restores 25 HP."));
         player.addItem(Item("AttackElixir", "ATTACK", 4, "Increases base attack by 4."));
         player.addItem(Item("Antidote", "CURE", 0, "Cures poison, burn, and stun ailments."));
@@ -81,24 +85,27 @@ int main() {
 
     bool running = true;
     while (running) {
-        cout << "\n==================================================" << endl;
-        cout << "               BEAST WEAVER - MAIN HUB            " << endl;
-        cout << "==================================================" << endl;
-        cout << "Trainer: " << player.getName() 
+        WorldState ws;
+        cout << "\n==========================================================================" << endl;
+        cout << "                        BEAST WEAVER: OVERWORLD MAP                       " << endl;
+        cout << "==========================================================================" << endl;
+        cout << " " << ws << endl;
+        cout << " Trainer: " << player.getName() 
              << " | Gold: " << player.getGold() << "G"
-             << " | Party: " << player.getPartySize() << "/3"
-             << " | PC Box: " << pcBox.getCount()
+             << " | Active Party: " << player.getPartySize() << "/3"
+             << " | Stored in PC: " << pcBox.getCount()
              << " | Caught: " << Trainer::getTotalCaught() << endl;
-        cout << "--------------------------------------------------" << endl;
-        cout << "1. Challenge Rival NPC Trainers (BattleArena)" << endl;
-        cout << "2. Explore Wild & Battle (Wild Encounter)" << endl;
-        cout << "3. Visit Beast Mart / Shop (Currency Overloading)" << endl;
-        cout << "4. View Party & Heal Beasts" << endl;
-        cout << "5. Open Backpack (Inventory)" << endl;
-        cout << "6. Visit PC Storage Box" << endl;
-        cout << "7. Save Game (Stream Serialization)" << endl;
-        cout << "8. Exit Game" << endl;
-        cout << "Choose action (1-8): ";
+        cout << "--------------------------------------------------------------------------" << endl;
+        cout << "  [1] 🌲 🌋 🌊 Explore Wild Habitats  - Venture into Canopy, Crags, or Reef" << endl;
+        cout << "  [2] 🏛️ Imperial Colosseum          - Wager Gold vs Rival NPC Trainers" << endl;
+        cout << "  [3] 🏪 The Grand BeastMart          - Buy Potions, Boosters & Ultra Nets" << endl;
+        cout << "  [4] 🏕️ Oakhaven Basecamp           - Rest (Day/Night), Heal, PC Storage" << endl;
+        cout << "  [5] 🎒 Open Backpack                - Use Consumables & Inspect Items" << endl;
+        cout << "  [6] 📜 Inspect Active Team          - View Level, Stats & Status" << endl;
+        cout << "  [7] 💾 Save Adventure               - Serialize Progress to save.txt" << endl;
+        cout << "  [8] 🚪 Exit Game" << endl;
+        cout << "--------------------------------------------------------------------------" << endl;
+        cout << "Choose destination (1-8): ";
 
         int mainChoice;
         if (!(cin >> mainChoice)) {
@@ -109,28 +116,22 @@ int main() {
 
         switch (mainChoice) {
             case 1:
-                npcChallengeMenu(player, arena);
+                exploreWildernessMenu(player, pcBox, arena);
                 break;
             case 2:
-                arena.startWildEncounter(player, pcBox);
+                npcChallengeMenu(player, arena);
                 break;
             case 3:
                 shopMenu(player);
                 break;
             case 4:
-                player.printParty();
-                cout << "\nHeal entire active party? (1 = Yes, 2 = No): ";
-                int healChoice;
-                cin >> healChoice;
-                if (healChoice == 1) {
-                    player.healParty();
-                }
+                campMenu(player, pcBox);
                 break;
             case 5:
                 inventoryMenu(player);
                 break;
             case 6:
-                storageMenu(player, pcBox);
+                player.printParty();
                 break;
             case 7:
                 saveGame(player, pcBox);
@@ -142,11 +143,11 @@ int main() {
                 if (exitSave == 1) {
                     saveGame(player, pcBox);
                 }
-                cout << "\nThank you for playing Beast Weaver! Goodbye!" << endl;
+                cout << "\nThank you for exploring Beast Weaver! Farewell, Game Master!" << endl;
                 running = false;
                 break;
             default:
-                cout << "Invalid choice! Please choose 1-8." << endl;
+                cout << "Invalid destination! Please choose 1-8." << endl;
                 break;
         }
     }
@@ -154,15 +155,67 @@ int main() {
     return 0;
 }
 
-// Requirement 5: Custom NPC Constructors instantiated for Battle Arena matches
+// Direction 4: World Map Zone Expedition Menu
+void exploreWildernessMenu(Trainer& player, StorageBox& pcBox, BattleArena& arena) {
+    cout << "\n==================================================" << endl;
+    cout << "           SELECT WILD EXPEDITION ZONE            " << endl;
+    cout << "==================================================" << endl;
+    cout << "1. 🌲 Verdant Canopy  (Dense Jungle | Grass & Nature Beasts)" << endl;
+    cout << "2. 🌋 Obsidian Crags  (Active Volcano | Fire & Magma Beasts)" << endl;
+    cout << "3. 🌊 Azure Reef      (Ocean Coastline | Water & Deep Beasts)" << endl;
+    cout << "4. Return to Overworld Map" << endl;
+    cout << "Select destination (1-4): ";
+
+    int zoneChoice;
+    if (cin >> zoneChoice && zoneChoice >= 1 && zoneChoice <= 3) {
+        arena.startWildEncounter(player, pcBox, zoneChoice);
+    }
+}
+
+// Direction 4: Oakhaven Basecamp with Day/Night Rest & PC Storage
+void campMenu(Trainer& player, StorageBox& pcBox) {
+    bool inCamp = true;
+    while (inCamp) {
+        WorldState ws;
+        cout << "\n==================================================" << endl;
+        cout << "               🏕️  OAKHAVEN BASECAMP               " << endl;
+        cout << "==================================================" << endl;
+        cout << " " << ws << endl;
+        cout << "1. 💤 Rest Until Morning (Advance Day & Restore Full Party)" << endl;
+        cout << "2. 💖 Nurse Joy's Tent (Heal Party Immediately)" << endl;
+        cout << "3. 💻 PC Storage Box Terminal (Deposit/Withdraw/Swap)" << endl;
+        cout << "4. Return to Overworld Map" << endl;
+        cout << "Choose camp action: ";
+
+        int cChoice;
+        if (!(cin >> cChoice)) {
+            cin.clear();
+            cin.ignore(1000, '\n');
+            continue;
+        }
+
+        if (cChoice == 1) {
+            WorldState::restUntilMorning();
+            player.healParty();
+        } else if (cChoice == 2) {
+            player.healParty();
+        } else if (cChoice == 3) {
+            storageMenu(player, pcBox);
+        } else if (cChoice == 4) {
+            inCamp = false;
+        }
+    }
+}
+
+// Custom Parameterized NPC Constructors & Battle Arena
 void npcChallengeMenu(Trainer& player, BattleArena& arena) {
-    cout << "\n==========================================" << endl;
-    cout << "           SELECT NPC CHALLENGER          " << endl;
-    cout << "==========================================" << endl;
+    cout << "\n==================================================" << endl;
+    cout << "           COLOSSEUM NPC TOURNAMENT               " << endl;
+    cout << "==================================================" << endl;
     cout << "1. Novice Scout Timmy     (Tier 1 | Wager: 60 Gold)" << endl;
     cout << "2. Specialist Hiker Brock (Tier 2 | Wager: 150 Gold)" << endl;
     cout << "3. Elite Champion Cynthia (Tier 3 | Wager: 350 Gold)" << endl;
-    cout << "4. Back to Main Hub" << endl;
+    cout << "4. Back to Overworld Map" << endl;
     cout << "Choose opponent (1-4): ";
 
     int tierPick;
@@ -173,8 +226,8 @@ void npcChallengeMenu(Trainer& player, BattleArena& arena) {
     }
 
     if (tierPick == 1) {
-        Trainer npc("Scout Timmy", 1); // Parameterized NPC constructor
-        arena.startMatch(player, npc); // Passing references to BattleArena
+        Trainer npc("Scout Timmy", 1);
+        arena.startMatch(player, npc);
     } else if (tierPick == 2) {
         Trainer npc("Hiker Brock", 2);
         arena.startMatch(player, npc);
@@ -184,21 +237,23 @@ void npcChallengeMenu(Trainer& player, BattleArena& arena) {
     }
 }
 
-// Requirement 3: Shop with Binary Operator-=
+// Shop Menu with Binary Operator-=
 void shopMenu(Trainer& player) {
     bool inShop = true;
     while (inShop) {
-        cout << "\n==========================================" << endl;
-        cout << "           BEAST WEAVER MART / SHOP       " << endl;
-        cout << "==========================================" << endl;
-        cout << "Trainer: " << player.getName() << " | Current Wallet: " << player.getGold() << " Gold" << endl;
-        cout << "------------------------------------------" << endl;
+        WorldState ws;
+        cout << "\n==================================================" << endl;
+        cout << "              🏪  THE GRAND BEASTMART             " << endl;
+        cout << "==================================================" << endl;
+        cout << " " << ws << endl;
+        cout << "Trainer: " << player.getName() << " | Wallet: " << player.getGold() << " Gold" << endl;
+        cout << "--------------------------------------------------" << endl;
         cout << "1. Health Potion (+25 HP)        -  30 Gold" << endl;
         cout << "2. Super Potion  (+45 HP)        -  60 Gold" << endl;
         cout << "3. Attack Elixir (+4 Base ATK)   -  50 Gold" << endl;
         cout << "4. Antidote      (Cures Ailments)-  25 Gold" << endl;
         cout << "5. Ultra Net     (+15 Trap Bonus)-  75 Gold" << endl;
-        cout << "6. Back to Main Hub" << endl;
+        cout << "6. Back to Overworld Map" << endl;
         cout << "Choose item to purchase: ";
 
         int pick;
@@ -208,10 +263,12 @@ void shopMenu(Trainer& player) {
             continue;
         }
 
+        WorldState::advanceTime(1); // Shopping advances time
+
         if (pick == 1) {
             int price = 30;
             if (player.getGold() >= price) {
-                player -= price; // Overloaded binary operator-=
+                player -= price;
                 player.addItem(Item("HealthPotion", "HEAL", 25, "Restores 25 HP."));
             } else cout << "\n❌ Not enough gold to buy Health Potion!" << endl;
         } else if (pick == 2) {
@@ -247,9 +304,9 @@ void shopMenu(Trainer& player) {
 void storageMenu(Trainer& player, StorageBox& pcBox) {
     bool inStorage = true;
     while (inStorage) {
-        cout << "\n==========================================" << endl;
-        cout << "           POKEMON / BEAST PC SYSTEM      " << endl;
-        cout << "==========================================" << endl;
+        cout << "\n==================================================" << endl;
+        cout << "              💻  PC STORAGE SYSTEM               " << endl;
+        cout << "==================================================" << endl;
         cout << "Active Party: " << player.getPartySize() << "/3"
              << " | Stored in PC: " << pcBox.getCount() << endl;
         cout << "1. View Active Party" << endl;
@@ -257,7 +314,7 @@ void storageMenu(Trainer& player, StorageBox& pcBox) {
         cout << "3. Deposit Beast from Party to PC" << endl;
         cout << "4. Withdraw Beast from PC to Party" << endl;
         cout << "5. Swap Party Beast with PC Beast" << endl;
-        cout << "6. Return to Main Hub" << endl;
+        cout << "6. Return to Camp" << endl;
         cout << "Choose storage action: ";
 
         int sChoice;
@@ -309,7 +366,7 @@ void inventoryMenu(Trainer& player) {
     bool inInv = true;
     while (inInv) {
         player.printInventory();
-        cout << "\n1. Use Item on a Party Beast\n2. Return to Main Hub\nChoose: ";
+        cout << "\n1. Use Item on a Party Beast\n2. Return to Overworld\nChoose: ";
         int choice;
         if (!(cin >> choice)) {
             cin.clear();
@@ -353,6 +410,8 @@ void saveGame(const Trainer& player, const StorageBox& pcBox) {
     outFile << player;
     outFile << pcBox;
     outFile << Trainer::getTotalCaught() << "\n";
+    WorldState ws;
+    outFile << ws;
 
     outFile.close();
     cout << "\n💾 [SAVE SUCCESS] Game state serialized and saved to save.txt successfully!" << endl;
@@ -371,9 +430,12 @@ bool loadGame(Trainer& player, StorageBox& pcBox) {
     if (inFile >> caught) {
         Trainer::setTotalCaught(caught);
     }
+    WorldState ws;
+    inFile >> ws;
 
     inFile.close();
     cout << "\n📂 [LOAD SUCCESS] Game state deserialized from save.txt successfully!" << endl;
-    cout << "Welcome back, " << player.getName() << "!" << endl;
+    cout << "Welcome back, " << player.getName() << "! Loaded on Day " 
+         << WorldState::getDay() << " (" << WorldState::getTimeOfDayString() << ")." << endl;
     return true;
 }
