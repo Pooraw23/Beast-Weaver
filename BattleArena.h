@@ -10,6 +10,10 @@
 
 using namespace std;
 
+// Forward declarations (Slide 02)
+class AchievementSystem;
+class Bestiary;
+
 class BattleArena {
 private:
     string arenaName;
@@ -27,10 +31,10 @@ public:
     static void renderWildHud(const Trainer& player, int activePlayerIdx, const Beast& wild, string location);
 
     // Runs a turn-based Trainer vs Trainer arena battle passing references (Requirement 1)
-    void startMatch(Trainer& player, Trainer& npc);
+    void startMatch(Trainer& player, Trainer& npc, AchievementSystem* achievements = nullptr, Bestiary* dex = nullptr);
 
     // Runs a wild beast battle encounter with zone support and capture mechanics
-    void startWildEncounter(Trainer& player, StorageBox& pcBox, int zone = 1);
+    void startWildEncounter(Trainer& player, StorageBox& pcBox, int zone = 1, AchievementSystem* achievements = nullptr, Bestiary* dex = nullptr);
 };
 
 #endif

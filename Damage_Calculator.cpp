@@ -1,4 +1,5 @@
 #include "Damage_Calculator.h"
+#include "WorldState.h"
 #include <iostream>
 #include <cstdlib>
 
@@ -26,7 +27,20 @@ bool DamageCalculator::resolveAttack(Beast& attacker, Beast& defender) {
     else if (attacker.elementalType == 0 && defender.elementalType == 1) multiplier = 0.5f;
     else if (attacker.elementalType == 1 && defender.elementalType == 2) multiplier = 0.5f;
 
-    // 3. Evaluate Attacker Status: Burn weakens attack output
+    // 3. Direction 4: Dynamic Weather Affinity Modifier
+    int weather = WorldState::getWeather();
+    if (attacker.elementalType == 0 && weather == 1) { // Fire under Scorching Sun
+        multiplier *= 1.25f;
+        cout << "☀️🔥 [WEATHER BOOST] Scorching Sun intensifies " << attacker.name << "'s flames!" << endl;
+    } else if (attacker.elementalType == 1 && weather == 2) { // Water under Torrential Rain
+        multiplier *= 1.25f;
+        cout << "🌧️💧 [WEATHER BOOST] Torrential Rain strengthens " << attacker.name << "'s tidal force!" << endl;
+    } else if (attacker.elementalType == 2 && weather == 3) { // Grass under Mystic Fog
+        multiplier *= 1.25f;
+        cout << "🌫️🌿 [WEATHER BOOST] Mystic Fog shrouds and empowers " << attacker.name << "'s vines!" << endl;
+    }
+
+    // 4. Evaluate Attacker Status: Burn weakens attack output
     if (attacker.statusState == 2) {
         multiplier *= 0.75f;
         cout << "🔥 [BURN MALUS] " << attacker.name << "'s burn weakened its attack output!" << endl;
@@ -45,7 +59,7 @@ bool DamageCalculator::resolveAttack(Beast& attacker, Beast& defender) {
     cout << "💥 " << defender.name << " took " << damage << " damage. (HP: " 
          << defender.hp << "/" << defender.maxHp << ")" << endl;
 
-    // 4. Inflict Status Conditions (if defender is alive and not already afflicted)
+    // 5. Inflict Status Conditions (if defender is alive and not already afflicted)
     if (!defender.isFainted() && defender.statusState == 0) {
         int chance = rand() % 100;
         if (attacker.elementalType == 0 && chance < 35) { // 35% Burn from Fire

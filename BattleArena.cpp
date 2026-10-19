@@ -1,4 +1,6 @@
 #include "BattleArena.h"
+#include "Achievement.h"
+#include "Bestiary.h"
 #include <iostream>
 #include <cstdlib>
 #include <iomanip>
@@ -114,13 +116,19 @@ void BattleArena::executeNpcTurn(Trainer& npc, int activeNpcIdx, Trainer& player
 }
 
 // Direction 4 & 3: Trainer vs Trainer match in Battle Arena
-void BattleArena::startMatch(Trainer& player, Trainer& npc) {
+void BattleArena::startMatch(Trainer& player, Trainer& npc, AchievementSystem* achievements, Bestiary* dex) {
     cout << "\n==================================================" << endl;
     cout << "           " << arenaName << " MATCH            " << endl;
     cout << "==================================================" << endl;
     cout << "Challenger " << player.getName() << " VS Rival Trainer " << npc.getName() << "!" << endl;
     cout << "Wager Prize: " << npc.getPrizeMoney() << " Gold!" << endl;
     cout << "==================================================" << endl;
+
+    if (dex) {
+        for (int i = 0; i < npc.getPartySize(); i++) {
+            dex->recordEncounter(npc[i].getName(), npc[i].getElementalType());
+        }
+    }
 
     if (!player.hasUsableBeasts()) {
         cout << "\nAll of " << player.getName() << "'s beasts are fainted! Heal your party first." << endl;
@@ -266,6 +274,11 @@ void BattleArena::startMatch(Trainer& player, Trainer& npc) {
     if (player.hasUsableBeasts()) {
         cout << "🏆 VICTORY! " << player.getName() << " defeated " << npc.getName() << "!" << endl;
         player += npc.getPrizeMoney(); // Overloaded binary operator+=
+        if (achievements) {
+            achievements->unlock("FIRST_BLOOD");
+            if (WorldState::isNight()) achievements->unlock("NIGHT_HUNTER");
+            if (npc.getName().find("Cynthia") != string::npos) achievements->unlock("CHAMPION_SLAYER");
+        }
     } else {
         cout << "💀 DEFEAT! All your beasts have fainted." << endl;
         cout << npc.getName() << " won the arena match." << endl;
@@ -273,7 +286,7 @@ void BattleArena::startMatch(Trainer& player, Trainer& npc) {
 }
 
 // Direction 4 & 3: Wild Expedition Zone Encounters
-void BattleArena::startWildEncounter(Trainer& player, StorageBox& pcBox, int zone) {
+void BattleArena::startWildEncounter(Trainer& player, StorageBox& pcBox, int zone, AchievementSystem* achievements, Bestiary* dex) {
     if (!player.hasUsableBeasts()) {
         cout << "\nAll of your beasts are fainted! Rest at camp or heal at the center first." << endl;
         return;
@@ -315,6 +328,10 @@ void BattleArena::startWildEncounter(Trainer& player, StorageBox& pcBox, int zon
     cout << "           ENTERING ZONE: " << zoneName << endl;
     cout << "==================================================" << endl;
     cout << "A wild " << wild.getName() << " appeared from the shadows!" << endl;
+
+    if (dex) {
+        dex->recordEncounter(wild.getName(), wild.getElementalType());
+    }
 
     int activeIdx = player.getFirstUsableIndex();
 
@@ -369,6 +386,8 @@ void BattleArena::startWildEncounter(Trainer& player, StorageBox& pcBox, int zon
 
             if (wild.getHp() <= threshold) {
                 player.catchBeast(wild, pcBox);
+                if (dex) dex->recordCapture(wild.getName());
+                if (achievements) achievements->checkMilestones(player, pcBox);
                 inBattle = false;
                 return;
             } else {
@@ -403,6 +422,11 @@ void BattleArena::startWildEncounter(Trainer& player, StorageBox& pcBox, int zon
             ++player[activeIdx]; // Level up
             player[activeIdx].addExp(30);
             player += 25; // Bonus exploration gold
+            if (achievements) {
+                achievements->unlock("FIRST_BLOOD");
+                if (WorldState::isNight()) achievements->unlock("NIGHT_HUNTER");
+                achievements->checkMilestones(player, pcBox);
+            }
             inBattle = false;
         }
 
