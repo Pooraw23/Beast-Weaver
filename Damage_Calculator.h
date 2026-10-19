@@ -5,8 +5,8 @@
 
 class DamageCalculator {
 public:
-    // Static function so we don't need to instantiate a DamageCalculator object to use it
-    static void resolveAttack(Beast& attacker, Beast& defender);
+    // Resolves attack between beasts, checks status ailments (stun/burn), and applies status effects
+    static bool resolveAttack(Beast& attacker, Beast& defender);
 };
 
 #endif
