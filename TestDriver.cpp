@@ -15,25 +15,34 @@
 #include "Bestiary.h"
 #include "Tournament.h"
 
+// 10 Game Master Direction 4 Extensions
+#include "TerminalHUD.h"
+#include "BattleLog.h"
+#include "WorldMap.h"
+#include "EventDispatcher.h"
+#include "BountyBoard.h"
+#include "Marketplace.h"
+#include "ReputationManager.h"
+#include "TrainerCard.h"
+#include "GameModeSettings.h"
+#include "SaveManager.h"
+
 using namespace std;
 
-// Direction 4: Function prototypes for UI, World State, and Game Master systems
-void saveGame(const Trainer& player, const StorageBox& pcBox, const AchievementSystem& achievements, const Bestiary& dex);
-bool loadGame(Trainer& player, StorageBox& pcBox, AchievementSystem& achievements, Bestiary& dex);
+// Direction 4: Function prototypes for UI and Overworld systems
 void storageMenu(Trainer& player, StorageBox& pcBox);
 void inventoryMenu(Trainer& player);
-void shopMenu(Trainer& player);
-void npcChallengeMenu(Trainer& player, StorageBox& pcBox, BattleArena& arena, AchievementSystem& achievements, Bestiary& dex, Tournament& tourney);
-void exploreWildernessMenu(Trainer& player, StorageBox& pcBox, BattleArena& arena, AchievementSystem& achievements, Bestiary& dex);
 void campMenu(Trainer& player, StorageBox& pcBox);
+void npcChallengeMenu(Trainer& player, StorageBox& pcBox, BattleArena& arena, AchievementSystem& achievements, Bestiary& dex, Tournament& tourney, ReputationManager& rep);
+void exploreWildernessMenu(Trainer& player, StorageBox& pcBox, BattleArena& arena, AchievementSystem& achievements, Bestiary& dex, ReputationManager& rep, BountyBoard& bounties);
+void mapNavigationLoop(Trainer& player, StorageBox& pcBox, BattleArena& arena, WorldMap& map, AchievementSystem& achievements, Bestiary& dex, ReputationManager& rep, BountyBoard& bounties, Marketplace& market);
 
 int main() {
     srand(static_cast<unsigned int>(time(nullptr)));
+    EventDispatcher::initialize();
 
-    cout << "==========================================================================" << endl;
-    cout << "             🌲 🌋 🌊  WELCOME TO BEAST WEAVER  🌊 🌋 🌲                 " << endl;
-    cout << "              Object-Oriented Tactical RPG Adventure                     " << endl;
-    cout << "==========================================================================" << endl;
+    TerminalHUD::printHeaderBanner("🌲 🌋 🌊  WELCOME TO BEAST WEAVER: EXPEDITION EDITION  🌊 🌋 🌲");
+    cout << TerminalHUD::colorize("             Master Object-Oriented Tactical RPG Adventure            \n", TerminalHUD::YELLOW);
 
     Trainer player("Hero");
     player.setGold(150);
@@ -42,21 +51,61 @@ int main() {
     Tournament tourney("Grand Imperial Cup", 500);
     AchievementSystem achievements;
     Bestiary dex;
+    BountyBoard bounties;
+    Marketplace market;
+    ReputationManager reputation;
+    WorldMap worldMap(8, 12);
+    SaveManager saveManager(3);
+
     bool gameLoaded = false;
 
-    // Check for existing save.txt (Requirement 1)
-    ifstream checkFile("save.txt");
-    if (checkFile.is_open()) {
-        checkFile.close();
-        cout << "\n[SAVE FOUND] A saved adventure was detected in save.txt!" << endl;
-        cout << "1. Resume Saved Game\n2. Start New Adventure\nChoose: ";
-        int startChoice;
-        if (cin >> startChoice && startChoice == 1) {
-            gameLoaded = loadGame(player, pcBox, achievements, dex);
+    // Save Profile Slot Selection / Quick-Resume
+    cout << "\nChoose an entry mode:" << endl;
+    cout << "1. Start New Adventure" << endl;
+    cout << "2. Quick-Resume from save.txt" << endl;
+    cout << "3. Manage / Load Save Slots (Multi-Save Manager)" << endl;
+    cout << "Select (1-3): ";
+    int bootChoice;
+    if (cin >> bootChoice) {
+        if (bootChoice == 2) {
+            ifstream inFile("save.txt");
+            if (inFile.is_open()) {
+                inFile >> player >> pcBox;
+                int caught = 0;
+                if (inFile >> caught) Trainer::setTotalCaught(caught);
+                WorldState ws; inFile >> ws;
+                inFile >> achievements >> dex;
+                inFile.close();
+                gameLoaded = true;
+                TerminalHUD::flashMessage("Loaded save.txt successfully! Welcome back, " + player.getName() + "!", TerminalHUD::GREEN);
+            } else {
+                cout << "No save.txt found! Starting fresh adventure." << endl;
+            }
+        } else if (bootChoice == 3) {
+            saveManager.printSlots();
+            cout << "Select slot to load (1-3, or 0 to start new): ";
+            int slotPick;
+            if (cin >> slotPick && slotPick >= 1 && slotPick <= 3 && saveManager.slotExists(slotPick)) {
+                gameLoaded = saveManager.load(slotPick, player, pcBox, achievements, dex);
+            }
         }
     }
 
     if (!gameLoaded) {
+        // Optional Challenge Game Mode Selector (Feature #10)
+        cout << "\n==================================================" << endl;
+        cout << "           SELECT ADVENTURE RULES / CHALLENGE     " << endl;
+        cout << "==================================================" << endl;
+        cout << "1. Standard Mode       (Casual, fainted beasts can be revived)" << endl;
+        cout << "2. 💀 Nuzlocke Mode    (Hardcore: Permadeath on all fainted beasts)" << endl;
+        cout << "3. ⏱️ Speedrun Clock   (Defeat Tournament within 120 turns)" << endl;
+        cout << "Choose rule preset (1-3): ";
+        int ruleChoice;
+        if (cin >> ruleChoice) {
+            if (ruleChoice == 2) GameModeSettings::setNuzlocke(true);
+            else if (ruleChoice == 3) GameModeSettings::setSpeedrun(true, 120);
+        }
+
         cout << "\nEnter your Trainer Name: ";
         string tName;
         cin >> tName;
@@ -64,21 +113,17 @@ int main() {
         player.setGold(150);
 
         cout << "\nChoose your starter Beast companion:" << endl;
-        cout << "1. 🔥 Pyrosaur   (Fire  - High Attack, Aggressive DPS)" << endl;
-        cout << "2. 💧 Aquafang   (Water - High HP, Stun Crowd Control)" << endl;
-        cout << "3. 🌿 Florataur  (Grass - Balanced Stats, Toxic Spores)" << endl;
+        cout << "1. " << TerminalHUD::getElementalBadge(0) << " Pyrosaur   (High Attack, Aggressive DPS)" << endl;
+        cout << "2. " << TerminalHUD::getElementalBadge(1) << " Aquafang   (High HP, Stun Crowd Control)" << endl;
+        cout << "3. " << TerminalHUD::getElementalBadge(2) << " Florataur  (Balanced Stats, Toxic Spores)" << endl;
         cout << "Select starter (1-3): ";
         int sChoice;
         cin >> sChoice;
 
         Beast starter;
-        if (sChoice == 1) {
-            starter = Beast("Pyrosaur", 0, 55, 18, 12, 0, 1, 0);
-        } else if (sChoice == 2) {
-            starter = Beast("Aquafang", 1, 65, 14, 10, 0, 1, 0);
-        } else {
-            starter = Beast("Florataur", 2, 60, 15, 11, 0, 1, 0);
-        }
+        if (sChoice == 1) starter = Beast("Pyrosaur", 0, 55, 18, 12, 0, 1, 0);
+        else if (sChoice == 2) starter = Beast("Aquafang", 1, 65, 14, 10, 0, 1, 0);
+        else starter = Beast("Florataur", 2, 60, 15, 11, 0, 1, 0);
 
         player.catchBeast(starter, pcBox);
         dex.recordEncounter(starter.getName(), starter.getElementalType());
@@ -95,30 +140,33 @@ int main() {
     while (running) {
         WorldState ws;
         achievements.checkMilestones(player, pcBox);
+        GameModeSettings::checkSpeedrunFail();
 
         cout << "\n==========================================================================" << endl;
-        cout << "                        BEAST WEAVER: OVERWORLD MAP                       " << endl;
+        cout << "                        BEAST WEAVER: OVERWORLD HUB                       " << endl;
         cout << "==========================================================================" << endl;
-        cout << " " << ws << endl;
-        cout << " Trainer: " << player.getName() 
-             << " | Gold: " << player.getGold() << "G"
-             << " | Active Party: " << player.getPartySize() << "/3"
-             << " | Stored in PC: " << pcBox.getCount()
+        cout << " " << ws << " " << TerminalHUD::colorize(GameModeSettings::getStatusSummary(), TerminalHUD::YELLOW) << endl;
+        cout << " Trainer: " << TerminalHUD::colorize(player.getName(), TerminalHUD::BOLD)
+             << " | Gold: " << TerminalHUD::colorize(to_string(player.getGold()) + "G", TerminalHUD::YELLOW)
+             << " | Active: " << player.getPartySize() << "/3"
+             << " | PC: " << pcBox.getCount()
              << " | Badges: [" << AchievementSystem::getTotalUnlocked() << "/" << AchievementSystem::getTotalMilestones() << "]"
-             << " | Bestiary: [" << dex.getTotalSeen() << "/" << dex.getCount() << "]" << endl;
+             << " | " << reputation << endl;
         cout << "--------------------------------------------------------------------------" << endl;
-        cout << "  [1] 🌲 🌋 🌊 Explore Wild Habitats  - Venture into Canopy, Crags, or Reef" << endl;
-        cout << "  [2] 🏛️ Imperial Colosseum          - Wager Gold vs Rivals & Enter Tournament" << endl;
-        cout << "  [3] 🏪 The Grand BeastMart          - Buy Potions, Boosters & Ultra Nets" << endl;
-        cout << "  [4] 🏕️ Oakhaven Basecamp           - Rest (Day/Night), Heal, PC Storage" << endl;
-        cout << "  [5] 📖 Pokédex / Bestiary           - Inspect Encountered & Captured Species" << endl;
-        cout << "  [6] 🏆 Trophy Case & Badges         - View Unlocked Milestones" << endl;
-        cout << "  [7] 🎒 Open Backpack                - Use Consumables & Inspect Items" << endl;
-        cout << "  [8] 📜 Inspect Active Team          - View Level, Stats & Status" << endl;
-        cout << "  [9] 💾 Save Adventure               - Serialize Progress to save.txt" << endl;
-        cout << "  [10] 🚪 Exit Game" << endl;
+        cout << "  [1] 🗺️  2D Interactive Overworld Map   - Explore grid with WASD & Ambush" << endl;
+        cout << "  [2] 🌲 🌋 🌊 Direct Zone Expedition  - Venture into Canopy, Crags, or Reef" << endl;
+        cout << "  [3] 🏛️ Imperial Colosseum & Cup      - Wager Gold & Enter Tournament" << endl;
+        cout << "  [4] 🏪 The Grand BeastMart           - Dynamic Economy & Night Peddler" << endl;
+        cout << "  [5] 📜 Town Bounty Noticeboard       - Complete Contracts for Gold" << endl;
+        cout << "  [6] 🏕️ Oakhaven Basecamp            - Rest, Heal Party & PC Storage" << endl;
+        cout << "  [7] 🎫 View Trainer Passport Card    - Inspect Stats, Titles & Rating" << endl;
+        cout << "  [8] 📖 Pokédex / Bestiary Catalog   - Species Lore & Discovery Records" << endl;
+        cout << "  [9] 🏆 Trophy Case & Badges          - Milestones & Achievements" << endl;
+        cout << "  [10] 🎒 Open Backpack                - Use Consumables & Inspect Gear" << endl;
+        cout << "  [11] 💾 Multi-Slot Save Manager      - Save/Load Across 3 Save Slots" << endl;
+        cout << "  [12] 🚪 Exit Game" << endl;
         cout << "--------------------------------------------------------------------------" << endl;
-        cout << "Choose destination (1-10): ";
+        cout << "Choose destination (1-12): ";
 
         int mainChoice;
         if (!(cin >> mainChoice)) {
@@ -129,44 +177,77 @@ int main() {
 
         switch (mainChoice) {
             case 1:
-                exploreWildernessMenu(player, pcBox, arena, achievements, dex);
+                mapNavigationLoop(player, pcBox, arena, worldMap, achievements, dex, reputation, bounties, market);
                 break;
             case 2:
-                npcChallengeMenu(player, pcBox, arena, achievements, dex, tourney);
+                exploreWildernessMenu(player, pcBox, arena, achievements, dex, reputation, bounties);
                 break;
             case 3:
-                shopMenu(player);
+                npcChallengeMenu(player, pcBox, arena, achievements, dex, tourney, reputation);
                 break;
             case 4:
-                campMenu(player, pcBox);
+                cout << "\n1. Visit Standard Market\n2. Seek Shady Night Peddler\nChoose: ";
+                int mChoice;
+                if (cin >> mChoice) {
+                    if (mChoice == 1) market.visitMart(player);
+                    else market.visitNightPeddler(player);
+                }
                 break;
             case 5:
-                cout << dex; // Overloaded Pokédex stream operator
+                cout << bounties;
+                cout << "\nClaim completed bounty reward (Enter slot #, or 0 to exit): ";
+                int bPick;
+                if (cin >> bPick && bPick > 0) {
+                    bounties.claim(bPick - 1, player);
+                }
                 break;
             case 6:
-                cout << achievements; // Overloaded Trophy Case stream operator
+                campMenu(player, pcBox);
                 break;
-            case 7:
-                inventoryMenu(player);
+            case 7: {
+                TrainerCard tc(player, dex, achievements, ws, reputation);
+                cout << tc;
                 break;
+            }
             case 8:
-                player.printParty();
+                cout << dex;
                 break;
             case 9:
-                saveGame(player, pcBox, achievements, dex);
+                cout << achievements;
                 break;
             case 10:
-                cout << "\nSave before exiting? (1 = Yes, 2 = No): ";
-                int exitSave;
-                cin >> exitSave;
-                if (exitSave == 1) {
-                    saveGame(player, pcBox, achievements, dex);
+                inventoryMenu(player);
+                break;
+            case 11: {
+                cout << saveManager;
+                cout << "\n1. Save to a Slot\n2. Load from a Slot\n3. Quick-Save to save.txt\nChoose: ";
+                int sAct;
+                if (cin >> sAct) {
+                    if (sAct == 1) {
+                        cout << "Select slot number (1-3): ";
+                        int sNum;
+                        if (cin >> sNum) saveManager.save(sNum, player, pcBox, achievements, dex);
+                    } else if (sAct == 2) {
+                        cout << "Select slot number (1-3): ";
+                        int sNum;
+                        if (cin >> sNum) saveManager.load(sNum, player, pcBox, achievements, dex);
+                    } else if (sAct == 3) {
+                        ofstream outFile("save.txt");
+                        if (outFile.is_open()) {
+                            outFile << player << pcBox << Trainer::getTotalCaught() << "\n" << ws << achievements << dex;
+                            outFile.close();
+                            TerminalHUD::flashMessage("Quick-Saved successfully to save.txt!", TerminalHUD::GREEN);
+                        }
+                    }
                 }
+                break;
+            }
+            case 12:
                 cout << "\nThank you for exploring Beast Weaver! Farewell, Game Master!" << endl;
                 running = false;
                 break;
             default:
-                cout << "Invalid destination! Please choose 1-10." << endl;
+                cout << "Invalid destination! Please choose 1-12." << endl;
                 break;
         }
     }
@@ -174,8 +255,63 @@ int main() {
     return 0;
 }
 
-// Direction 4: World Map Zone Expedition Menu
-void exploreWildernessMenu(Trainer& player, StorageBox& pcBox, BattleArena& arena, AchievementSystem& achievements, Bestiary& dex) {
+// Direction 4 Feature #2: Interactive 2D Overworld Map Navigation
+void mapNavigationLoop(Trainer& player, StorageBox& pcBox, BattleArena& arena, WorldMap& map, AchievementSystem& achievements, Bestiary& dex, ReputationManager& rep, BountyBoard& bounties, Marketplace& market) {
+    bool navigating = true;
+    while (navigating) {
+        cout << map;
+        cout << "\n🧭 CONTROLS: [W] North | [S] South | [A] West | [D] East | [E] Enter Tile | [Q] Return to Hub" << endl;
+        cout << "Enter movement command: ";
+        char cmd;
+        if (!(cin >> cmd)) {
+            cin.clear();
+            cin.ignore(1000, '\n');
+            continue;
+        }
+
+        if (cmd == 'Q' || cmd == 'q') {
+            navigating = false;
+            break;
+        } else if (cmd == 'E' || cmd == 'e') {
+            char tile = map.getCurrentTile();
+            if (tile == 'T') campMenu(player, pcBox);
+            else if (tile == 'M') market.visitMart(player);
+            else if (tile == 'C') {
+                Tournament tourney("Grand Imperial Cup", 500);
+                npcChallengeMenu(player, pcBox, arena, achievements, dex, tourney, rep);
+            } else if (tile == 'F') {
+                arena.startWildEncounter(player, pcBox, 1, &achievements, &dex);
+                bounties.markComplete(2);
+            } else if (tile == 'V') {
+                arena.startWildEncounter(player, pcBox, 2, &achievements, &dex);
+                bounties.markComplete(0);
+            } else if (tile == 'O') {
+                arena.startWildEncounter(player, pcBox, 3, &achievements, &dex);
+                bounties.markComplete(1);
+            } else {
+                cout << "\nYou search the open plains but find only rustling wildflowers." << endl;
+            }
+        } else {
+            char newTile = map.move(cmd);
+            WorldState::advanceTime(1); // Walking advances world clock
+
+            // Feature #4: Wilderness Event Dispatcher
+            WorldState ws;
+            EventDispatcher::triggerRandomEvent(player, ws, 25);
+
+            // Chance of tall-grass random encounter if in wild tiles
+            if ((newTile == 'F' || newTile == 'V' || newTile == 'O') && (rand() % 100 < 35)) {
+                TerminalHUD::flashMessage("⚠️ TALL GRASS AMBUSH! A wild beast lunges at you!", TerminalHUD::RED);
+                int z = (newTile == 'V') ? 2 : (newTile == 'O' ? 3 : 1);
+                arena.startWildEncounter(player, pcBox, z, &achievements, &dex);
+            }
+        }
+    }
+}
+
+// Direction 4: Direct Zone Expeditions
+void exploreWildernessMenu(Trainer& player, StorageBox& pcBox, BattleArena& arena, AchievementSystem& achievements, Bestiary& dex, ReputationManager& rep, BountyBoard& bounties) {
+    (void)rep;
     cout << "\n==================================================" << endl;
     cout << "           SELECT WILD EXPEDITION ZONE            " << endl;
     cout << "==================================================" << endl;
@@ -188,11 +324,14 @@ void exploreWildernessMenu(Trainer& player, StorageBox& pcBox, BattleArena& aren
     int zoneChoice;
     if (cin >> zoneChoice && zoneChoice >= 1 && zoneChoice <= 3) {
         arena.startWildEncounter(player, pcBox, zoneChoice, &achievements, &dex);
+        if (zoneChoice == 1) bounties.markComplete(2);
+        else if (zoneChoice == 2) bounties.markComplete(0);
+        else if (zoneChoice == 3) bounties.markComplete(1);
     }
 }
 
-// Direction 4: Colosseum NPC Tournament and Exhibition Menu
-void npcChallengeMenu(Trainer& player, StorageBox& pcBox, BattleArena& arena, AchievementSystem& achievements, Bestiary& dex, Tournament& tourney) {
+// Direction 4: Colosseum Tournaments & Exhibitions
+void npcChallengeMenu(Trainer& player, StorageBox& pcBox, BattleArena& arena, AchievementSystem& achievements, Bestiary& dex, Tournament& tourney, ReputationManager& rep) {
     cout << "\n==================================================" << endl;
     cout << "           COLOSSEUM NPC TOURNAMENT               " << endl;
     cout << "==================================================" << endl;
@@ -213,18 +352,22 @@ void npcChallengeMenu(Trainer& player, StorageBox& pcBox, BattleArena& arena, Ac
     if (tierPick == 1) {
         Trainer npc("Scout Timmy", 1);
         arena.startMatch(player, npc, &achievements, &dex);
+        rep.addFame(20).checkRank();
     } else if (tierPick == 2) {
         Trainer npc("Hiker Brock", 2);
         arena.startMatch(player, npc, &achievements, &dex);
+        rep.addFame(50).checkRank();
     } else if (tierPick == 3) {
         Trainer npc("Champion Cynthia", 3);
         arena.startMatch(player, npc, &achievements, &dex);
+        rep.addFame(120).checkRank();
     } else if (tierPick == 4) {
-        tourney.enterTournament(player, pcBox, achievements, dex);
+        if (tourney.enterTournament(player, pcBox, achievements, dex)) {
+            rep.addFame(250).checkRank();
+        }
     }
 }
 
-// Direction 4: Oakhaven Basecamp with Day/Night Rest & PC Storage
 void campMenu(Trainer& player, StorageBox& pcBox) {
     bool inCamp = true;
     while (inCamp) {
@@ -255,70 +398,6 @@ void campMenu(Trainer& player, StorageBox& pcBox) {
             storageMenu(player, pcBox);
         } else if (cChoice == 4) {
             inCamp = false;
-        }
-    }
-}
-
-// Shop Menu with Binary Operator-=
-void shopMenu(Trainer& player) {
-    bool inShop = true;
-    while (inShop) {
-        WorldState ws;
-        cout << "\n==================================================" << endl;
-        cout << "              🏪  THE GRAND BEASTMART             " << endl;
-        cout << "==================================================" << endl;
-        cout << " " << ws << endl;
-        cout << "Trainer: " << player.getName() << " | Wallet: " << player.getGold() << " Gold" << endl;
-        cout << "--------------------------------------------------" << endl;
-        cout << "1. Health Potion (+25 HP)        -  30 Gold" << endl;
-        cout << "2. Super Potion  (+45 HP)        -  60 Gold" << endl;
-        cout << "3. Attack Elixir (+4 Base ATK)   -  50 Gold" << endl;
-        cout << "4. Antidote      (Cures Ailments)-  25 Gold" << endl;
-        cout << "5. Ultra Net     (+15 Trap Bonus)-  75 Gold" << endl;
-        cout << "6. Back to Overworld Map" << endl;
-        cout << "Choose item to purchase: ";
-
-        int pick;
-        if (!(cin >> pick)) {
-            cin.clear();
-            cin.ignore(1000, '\n');
-            continue;
-        }
-
-        WorldState::advanceTime(1); // Shopping advances time
-
-        if (pick == 1) {
-            int price = 30;
-            if (player.getGold() >= price) {
-                player -= price;
-                player.addItem(Item("HealthPotion", "HEAL", 25, "Restores 25 HP."));
-            } else cout << "\n❌ Not enough gold to buy Health Potion!" << endl;
-        } else if (pick == 2) {
-            int price = 60;
-            if (player.getGold() >= price) {
-                player -= price;
-                player.addItem(Item("SuperPotion", "HEAL", 45, "Restores 45 HP."));
-            } else cout << "\n❌ Not enough gold to buy Super Potion!" << endl;
-        } else if (pick == 3) {
-            int price = 50;
-            if (player.getGold() >= price) {
-                player -= price;
-                player.addItem(Item("AttackElixir", "ATTACK", 4, "Increases base attack by 4."));
-            } else cout << "\n❌ Not enough gold to buy Attack Elixir!" << endl;
-        } else if (pick == 4) {
-            int price = 25;
-            if (player.getGold() >= price) {
-                player -= price;
-                player.addItem(Item("Antidote", "CURE", 0, "Cures poison, burn, and stun ailments."));
-            } else cout << "\n❌ Not enough gold to buy Antidote!" << endl;
-        } else if (pick == 5) {
-            int price = 75;
-            if (player.getGold() >= price) {
-                player -= price;
-                player.addItem(Item("UltraNet", "TRAP", 15, "Captures beasts with higher health."));
-            } else cout << "\n❌ Not enough gold to buy Ultra Net!" << endl;
-        } else if (pick == 6) {
-            inShop = false;
         }
     }
 }
@@ -420,48 +499,4 @@ void inventoryMenu(Trainer& player) {
             inInv = false;
         }
     }
-}
-
-void saveGame(const Trainer& player, const StorageBox& pcBox, const AchievementSystem& achievements, const Bestiary& dex) {
-    ofstream outFile("save.txt");
-    if (!outFile.is_open()) {
-        cout << "\n[ERROR] Could not open save.txt for writing!" << endl;
-        return;
-    }
-
-    outFile << player;
-    outFile << pcBox;
-    outFile << Trainer::getTotalCaught() << "\n";
-    WorldState ws;
-    outFile << ws;
-    outFile << achievements;
-    outFile << dex;
-
-    outFile.close();
-    cout << "\n💾 [SAVE SUCCESS] Complete adventure state serialized and saved to save.txt successfully!" << endl;
-}
-
-bool loadGame(Trainer& player, StorageBox& pcBox, AchievementSystem& achievements, Bestiary& dex) {
-    ifstream inFile("save.txt");
-    if (!inFile.is_open()) {
-        cout << "\n[ERROR] Could not open save.txt for reading!" << endl;
-        return false;
-    }
-
-    inFile >> player;
-    inFile >> pcBox;
-    int caught = 0;
-    if (inFile >> caught) {
-        Trainer::setTotalCaught(caught);
-    }
-    WorldState ws;
-    inFile >> ws;
-    inFile >> achievements;
-    inFile >> dex;
-
-    inFile.close();
-    cout << "\n📂 [LOAD SUCCESS] Game state deserialized from save.txt successfully!" << endl;
-    cout << "Welcome back, " << player.getName() << "! Loaded on Day " 
-         << WorldState::getDay() << " (" << WorldState::getTimeOfDayString() << ")." << endl;
-    return true;
 }
