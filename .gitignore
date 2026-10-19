@@ -1,0 +1,17 @@
+# macOS system files
+.DS_Store
+
+# Compiled object files and binaries
+*.o
+*.out
+*.exe
+output.out
+
+# Build artifacts
+build/
+bin/
+out/
+
+# IDE and editor settings
+.vscode/
+.idea/
