@@ -67,9 +67,7 @@ void BattleArena::renderDuelHud(const Trainer& player, int activePlayerIdx, cons
 }
 
 // Direction 4: ASCII Visual HUD for Wild Encounters
-void BattleArena::renderWildHud(const Trainer& player, int activePlayerIdx, const Beast& wild, string location) {
-    const Beast& pBeast = player[activePlayerIdx];
-
+void BattleArena::renderWildHud(const string& trainerName, const Beast& pBeast, const Beast& wild, string location) {
     string pElem = (pBeast.getElementalType() == 0) ? "🔥 FIRE" : (pBeast.getElementalType() == 1 ? "💧 WATER" : "🌿 GRASS");
     string wElem = (wild.getElementalType() == 0) ? "🔥 FIRE" : (wild.getElementalType() == 1 ? "💧 WATER" : "🌿 GRASS");
 
@@ -88,7 +86,7 @@ void BattleArena::renderWildHud(const Trainer& player, int activePlayerIdx, cons
     cout << "║                                                                              ║" << endl;
     cout << "║                              ⚔️       VS       ⚔️                            ║" << endl;
     cout << "║                                                                              ║" << endl;
-    cout << "║ YOUR BEAST:                                                                  ║" << endl;
+    cout << "║ YOUR BEAST (" << left << setw(15) << trainerName << "):                                          ║" << endl;
     cout << "║   [" << left << setw(14) << pBeast.getName() << "] Lv." << setw(2) << pBeast.getLevel() 
          << " (" << setw(10) << pElem << " | " << setw(9) << pBeast.getStatusString() << ") " 
          << setw(20) << "" << "║" << endl;
@@ -96,6 +94,39 @@ void BattleArena::renderWildHud(const Trainer& player, int activePlayerIdx, cons
          << setw(4) << pBeast.getHp() << "/" << setw(4) << pBeast.getMaxHp() 
          << " | ATK: " << setw(3) << pBeast.getAttack() << " | SPD: " << setw(3) << pBeast.getSpeed() << "       ║" << endl;
     cout << "╚══════════════════════════════════════════════════════════════════════════════╝" << endl;
+}
+
+void BattleArena::renderWildHud(const Trainer& player, int activePlayerIdx, const Beast& wild, string location) {
+    renderWildHud(player.getName(), player[activePlayerIdx], wild, location);
+}
+
+void BattleArena::printAllCapturedBeasts(const Trainer& player, const StorageBox& pcBox) {
+    cout << "\n==================================================" << endl;
+    cout << "          ALL CAPTURED BEASTS ROSTER              " << endl;
+    cout << "==================================================" << endl;
+    cout << "--- ACTIVE FIGHTING LINEUP (Max 3) ---" << endl;
+    if (player.getPartySize() == 0) {
+        cout << "  (Party is empty)" << endl;
+    } else {
+        for (int i = 0; i < player.getPartySize(); i++) {
+            cout << "  [" << (i + 1) << "] " << player[i];
+            if (player[i].isFainted()) cout << " [FAINTED]";
+            cout << endl;
+        }
+    }
+
+    cout << "--- PC STORAGE BOX RESERVES ---" << endl;
+    if (pcBox.getCount() == 0) {
+        cout << "  (No beasts in PC storage)" << endl;
+    } else {
+        for (int j = 0; j < pcBox.getCount(); j++) {
+            int slotNum = player.getPartySize() + j + 1;
+            cout << "  [" << slotNum << "] " << pcBox[j];
+            if (pcBox[j].isFainted()) cout << " [FAINTED]";
+            cout << endl;
+        }
+    }
+    cout << "==================================================" << endl;
 }
 
 // Direction 3: NPC AI with cascaded member function calls
@@ -287,8 +318,12 @@ void BattleArena::startMatch(Trainer& player, Trainer& npc, AchievementSystem* a
 
 // Direction 4 & 3: Wild Expedition Zone Encounters
 void BattleArena::startWildEncounter(Trainer& player, StorageBox& pcBox, int zone, AchievementSystem* achievements, Bestiary* dex) {
-    if (!player.hasUsableBeasts()) {
-        cout << "\nAll of your beasts are fainted! Rest at camp or heal at the center first." << endl;
+    bool hasPartyBeast = player.hasUsableBeasts();
+    bool hasBoxBeast = pcBox.hasUsableBeasts();
+
+    if (!hasPartyBeast && !hasBoxBeast) {
+        cout << "\n❌ All of your captured beasts (in active party and PC storage) have fainted!" << endl;
+        cout << "Rest at camp or visit Nurse Joy first before exploring the wild." << endl;
         return;
     }
 
@@ -333,14 +368,21 @@ void BattleArena::startWildEncounter(Trainer& player, StorageBox& pcBox, int zon
         dex->recordEncounter(wild.getName(), wild.getElementalType());
     }
 
-    int activeIdx = player.getFirstUsableIndex();
+    // Determine initial active beast: prefer party lead, fallback to storage box
+    Beast* activeBeast = nullptr;
+    if (hasPartyBeast) {
+        activeBeast = &player[player.getFirstUsableIndex()];
+    } else {
+        activeBeast = &pcBox[pcBox.getFirstUsableIndex()];
+        cout << "\n[WILD BATTLE ALLIANCE] Party is resting; deploying " << activeBeast->getName() << " from PC Storage!" << endl;
+    }
 
     bool inBattle = true;
-    while (inBattle && !wild.isFainted() && player.hasUsableBeasts()) {
-        // Render Direction 4 ASCII Wild HUD
-        renderWildHud(player, activeIdx, wild, zoneName);
+    while (inBattle && !wild.isFainted() && (player.hasUsableBeasts() || pcBox.hasUsableBeasts())) {
+        // Render Direction 4 ASCII Wild HUD with active beast
+        renderWildHud(player.getName(), *activeBeast, wild, zoneName);
 
-        cout << "1. Attack\n2. Defend & Heal\n3. Use Item\n4. Capture Beast\n5. Switch\n6. Flee Zone\nChoose action: ";
+        cout << "1. Attack\n2. Defend & Heal\n3. Use Item\n4. Capture Beast\n5. Switch (Any Captured Beast)\n6. Flee Zone\nChoose action: ";
         int cmd;
         if (!(cin >> cmd)) {
             cin.clear();
@@ -352,14 +394,14 @@ void BattleArena::startWildEncounter(Trainer& player, StorageBox& pcBox, int zon
         WorldState::advanceTime(1);
 
         if (cmd == 1) {
-            DamageCalculator::resolveAttack(player[activeIdx], wild);
+            DamageCalculator::resolveAttack(*activeBeast, wild);
             if (!wild.isFainted()) {
-                DamageCalculator::resolveAttack(wild, player[activeIdx]);
+                DamageCalculator::resolveAttack(wild, *activeBeast);
             }
         } else if (cmd == 2) {
-            player[activeIdx].defend().heal(10);
+            activeBeast->defend().heal(10);
             if (!wild.isFainted()) {
-                DamageCalculator::resolveAttack(wild, player[activeIdx]);
+                DamageCalculator::resolveAttack(wild, *activeBeast);
             }
         } else if (cmd == 3) {
             if (player.getInventoryCount() == 0) {
@@ -371,9 +413,9 @@ void BattleArena::startWildEncounter(Trainer& player, StorageBox& pcBox, int zon
             int slot;
             cin >> slot;
             if (slot > 0 && slot <= player.getInventoryCount()) {
-                player.useItem(slot - 1, player[activeIdx]);
+                player.useItem(slot - 1, *activeBeast);
                 if (!wild.isFainted()) {
-                    DamageCalculator::resolveAttack(wild, player[activeIdx]);
+                    DamageCalculator::resolveAttack(wild, *activeBeast);
                 }
             }
         } else if (cmd == 4) {
@@ -392,17 +434,36 @@ void BattleArena::startWildEncounter(Trainer& player, StorageBox& pcBox, int zon
                 return;
             } else {
                 cout << "\nThe beast broke free! HP must be <= " << threshold << "." << endl;
-                DamageCalculator::resolveAttack(wild, player[activeIdx]);
+                DamageCalculator::resolveAttack(wild, *activeBeast);
             }
         } else if (cmd == 5) {
-            player.printParty();
-            cout << "Select beast (1-" << player.getPartySize() << "): ";
+            // SWITCH: The player can deploy ANY captured beast from Party OR PC Box!
+            printAllCapturedBeasts(player, pcBox);
+            int totalCaptured = player.getPartySize() + pcBox.getCount();
+            cout << "Select captured beast slot to summon (1-" << totalCaptured << ", or 0 to cancel): ";
             int pick;
-            cin >> pick;
-            if (pick >= 1 && pick <= player.getPartySize() && !player[pick - 1].isFainted()) {
-                activeIdx = pick - 1;
-                cout << "\nGo " << player[activeIdx].getName() << "!" << endl;
-                DamageCalculator::resolveAttack(wild, player[activeIdx]);
+            if (cin >> pick && pick >= 1 && pick <= totalCaptured) {
+                Beast* chosen = nullptr;
+                if (pick <= player.getPartySize()) {
+                    chosen = &player[pick - 1];
+                } else {
+                    chosen = &pcBox[pick - 1 - player.getPartySize()];
+                }
+
+                if (chosen == activeBeast) {
+                    cout << chosen->getName() << " is already on the field!" << endl;
+                    continue;
+                } else if (chosen->isFainted()) {
+                    cout << chosen->getName() << " is fainted and cannot fight!" << endl;
+                    continue;
+                } else {
+                    activeBeast = chosen;
+                    cout << "\nSwitch! Go " << activeBeast->getName() << "!" << endl;
+                    DamageCalculator::resolveAttack(wild, *activeBeast);
+                }
+            } else {
+                cout << "Switch cancelled." << endl;
+                continue;
             }
         } else if (cmd == 6) {
             cout << "\nYou retreated back to camp!" << endl;
@@ -411,16 +472,16 @@ void BattleArena::startWildEncounter(Trainer& player, StorageBox& pcBox, int zon
         }
 
         // Status ticks
-        if (!wild.isFainted() && !player[activeIdx].isFainted()) {
+        if (!wild.isFainted() && !activeBeast->isFainted()) {
             cout << "\n--- END OF TURN STATUS CHECKS ---" << endl;
-            --player[activeIdx];
+            --(*activeBeast);
             --wild;
         }
 
         if (wild.isFainted()) {
             cout << "\n🎉 " << wild.getName() << " fainted! You won!" << endl;
-            ++player[activeIdx]; // Level up
-            player[activeIdx].addExp(30);
+            ++(*activeBeast); // Level up
+            activeBeast->addExp(30);
             player += 25; // Bonus exploration gold
             if (achievements) {
                 achievements->unlock("FIRST_BLOOD");
@@ -430,13 +491,36 @@ void BattleArena::startWildEncounter(Trainer& player, StorageBox& pcBox, int zon
             inBattle = false;
         }
 
-        if (player[activeIdx].isFainted()) {
-            cout << "\n❌ " << player[activeIdx].getName() << " fainted!" << endl;
-            if (player.hasUsableBeasts()) {
-                activeIdx = player.getFirstUsableIndex();
-                cout << "Sent out " << player[activeIdx].getName() << "!" << endl;
+        if (activeBeast->isFainted()) {
+            cout << "\n❌ " << activeBeast->getName() << " fainted!" << endl;
+            bool anyUsable = player.hasUsableBeasts() || pcBox.hasUsableBeasts();
+            if (anyUsable) {
+                cout << "\nChoose your next captured beast to deploy into the wild battle:" << endl;
+                printAllCapturedBeasts(player, pcBox);
+                int totalCaptured = player.getPartySize() + pcBox.getCount();
+                bool switched = false;
+                while (!switched) {
+                    cout << "Select valid slot (1-" << totalCaptured << "): ";
+                    int pick;
+                    if (cin >> pick && pick >= 1 && pick <= totalCaptured) {
+                        Beast* chosen = (pick <= player.getPartySize())
+                                        ? &player[pick - 1]
+                                        : &pcBox[pick - 1 - player.getPartySize()];
+                        if (!chosen->isFainted()) {
+                            activeBeast = chosen;
+                            cout << "\nGo! " << activeBeast->getName() << " enters the wild battle!" << endl;
+                            switched = true;
+                        } else {
+                            cout << chosen->getName() << " is unable to fight! Choose another." << endl;
+                        }
+                    } else {
+                        cout << "Invalid slot number!" << endl;
+                        cin.clear();
+                        cin.ignore(1000, '\n');
+                    }
+                }
             } else {
-                cout << "\nAll beasts fainted! You rushed back to Oakhaven Camp..." << endl;
+                cout << "\nAll of your captured beasts have fainted! You rushed back to Oakhaven Camp..." << endl;
                 inBattle = false;
             }
         }

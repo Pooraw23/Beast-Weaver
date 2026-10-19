@@ -89,6 +89,26 @@ int StorageBox::getCount() const {
     return count;
 }
 
+bool StorageBox::hasUsableBeasts() const {
+    for (int i = 0; i < count; i++) {
+        if (!boxArray[i].isFainted()) return true;
+    }
+    return false;
+}
+
+int StorageBox::getFirstUsableIndex() const {
+    for (int i = 0; i < count; i++) {
+        if (!boxArray[i].isFainted()) return i;
+    }
+    return -1;
+}
+
+void StorageBox::healAll() {
+    for (int i = 0; i < count; i++) {
+        boxArray[i].restoreHealth();
+    }
+}
+
 Beast& StorageBox::operator[](int index) {
     if (index >= 0 && index < count) {
         return boxArray[index];

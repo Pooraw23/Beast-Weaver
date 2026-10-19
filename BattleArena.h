@@ -29,6 +29,8 @@ public:
     static string renderHpBar(int current, int max, int length = 16);
     static void renderDuelHud(const Trainer& player, int activePlayerIdx, const Trainer& opponent, int activeOpponentIdx, string location);
     static void renderWildHud(const Trainer& player, int activePlayerIdx, const Beast& wild, string location);
+    static void renderWildHud(const string& trainerName, const Beast& playerBeast, const Beast& wild, string location);
+    static void printAllCapturedBeasts(const Trainer& player, const StorageBox& pcBox);
 
     // Runs a turn-based Trainer vs Trainer arena battle passing references (Requirement 1)
     void startMatch(Trainer& player, Trainer& npc, AchievementSystem* achievements = nullptr, Bestiary* dex = nullptr);

@@ -27,6 +27,9 @@ public:
     Beast removeBeast(int index);
     void printBox() const;
     int getCount() const;
+    bool hasUsableBeasts() const;
+    int getFirstUsableIndex() const;
+    void healAll();
 
     // Subscript operator overloading with bounds checking
     Beast& operator[](int index);

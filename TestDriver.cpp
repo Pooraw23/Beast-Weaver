@@ -392,8 +392,12 @@ void campMenu(Trainer& player, StorageBox& pcBox) {
         if (cChoice == 1) {
             WorldState::restUntilMorning();
             player.healParty();
+            pcBox.healAll();
+            cout << ">>> PC Storage Box reserves have also been fully restored!" << endl;
         } else if (cChoice == 2) {
             player.healParty();
+            pcBox.healAll();
+            cout << ">>> Nurse Joy also treated all beasts resting in PC Storage!" << endl;
         } else if (cChoice == 3) {
             storageMenu(player, pcBox);
         } else if (cChoice == 4) {

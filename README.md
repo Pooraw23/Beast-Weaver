@@ -62,7 +62,7 @@ The project strictly follows the **3-file minimum architecture** (Interface `.h`
 
 ### Direction 1, 2 & 3 Support Modules
 
-- **[`BattleArena.h`](BattleArena.h) / [`BattleArena.cpp`](BattleArena.cpp)** *(Direction 3 & 4)*: Turn-based arena loop passing `Trainer&` references, dual-card ASCII HUD, NPC strategy using `this` pointer cascading (`npc[idx].defend().heal()`), and EXP/Prize payouts.
+- **[`BattleArena.h`](BattleArena.h) / [`BattleArena.cpp`](BattleArena.cpp)** *(Direction 3 & 4)*: Turn-based arena loop passing `Trainer&` references, dual-card ASCII HUD, NPC strategy using `this` pointer cascading (`npc[idx].defend().heal()`), and EXP/Prize payouts. Enforces a strict **3-beast active fighting lineup** in official Colosseum & Tournament battles, while allowing trainers to deploy and switch to **any captured beast** (from active party or PC Storage Box reserves) during wild zone expeditions.
 - **[`Beast.h`](Beast.h) / [`Beast.cpp`](Beast.cpp)** *(Direction 2)*: Encapsulates stats, cascaded commands, `operator+=` for items, unary `--` for status damage, and unary `++` for level-ups.
 - **[`Item.h`](Item.h) / [`Item.cpp`](Item.cpp)** *(Direction 2)*: Usable consumables with relational `operator==` and stream operators.
 - **[`StorageBox.h`](StorageBox.h) / [`StorageBox.cpp`](StorageBox.cpp)** *(Direction 1)*: PC Storage Box dynamic array with Rule of Three and subscript `operator[]`.
