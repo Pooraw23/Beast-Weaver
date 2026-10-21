@@ -8,7 +8,6 @@
 
 using namespace std;
 
-// Function pointer signature for wilderness events (Slide 03)
 typedef void (*EventCallback)(Trainer& player, WorldState& ws);
 
 class EventDispatcher {
